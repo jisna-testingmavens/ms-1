@@ -9,8 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout application repo
+      - name: Checkout App Repo
+        uses: actions/checkout@v4
 
+      # Configure AWS credentials
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -18,24 +21,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      # Login to Amazon ECR
       - name: Login to ECR
         run: |
           aws ecr get-login-password | docker login \
             --username AWS \
             --password-stdin 756827365110.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Build & Push
+      # Build Docker image, tag, and push
+      - name: Build & Push Image
         run: |
           IMAGE_TAG=$(git rev-parse --short HEAD)
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
           docker build -t test-pipeline-repo:$IMAGE_TAG .
           docker tag test-pipeline-repo:$IMAGE_TAG \
             756827365110.dkr.ecr.us-east-1.amazonaws.com/test-pipeline-repo:$IMAGE_TAG
           docker push 756827365110.dkr.ecr.us-east-1.amazonaws.com/test-pipeline-repo:$IMAGE_TAG
 
+      # Clone infra repo and update Helm values
       - name: Update Infra Repo
         run: |
           git clone https://x-access-token:${{ secrets.INFRA_REPO_TOKEN }}@github.com/jisna-testingmavens/infra-repo-env.git
-          cd infra
+          cd infra-repo-env
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
           sed -i "s/tag:.*/tag: \"$IMAGE_TAG\"/" helm/ms-1/values-dev.yaml
-          git commit -am "update ms-1 image $IMAGE_TAG"
+
+          git add helm/ms-1/values-dev.yaml
+          git commit -m "update ms-1 image tag to $IMAGE_TAG"
           git push

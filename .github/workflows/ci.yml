@@ -1,1 +1,41 @@
+name: Build & Push Image
 
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password | docker login \
+            --username AWS \
+            --password-stdin 756827365110.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Build & Push
+        run: |
+          IMAGE_TAG=$(git rev-parse --short HEAD)
+          docker build -t test-pipeline-repo:$IMAGE_TAG .
+          docker tag test-pipeline-repo:$IMAGE_TAG \
+            756827365110.dkr.ecr.us-east-1.amazonaws.com/test-pipeline-repo:$IMAGE_TAG
+          docker push 756827365110.dkr.ecr.us-east-1.amazonaws.com/test-pipeline-repo:$IMAGE_TAG
+
+      - name: Update Infra Repo
+        run: |
+          git clone https://x-access-token:${{ secrets.INFRA_REPO_TOKEN }}@github.com/<org>/infra.git
+          cd infra
+          sed -i "s/tag:.*/tag: \"$IMAGE_TAG\"/" helm/ms-1/values-dev.yaml
+          git commit -am "update ms-1 image $IMAGE_TAG"
+          git push

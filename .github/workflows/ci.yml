@@ -34,7 +34,7 @@ jobs:
 
       - name: Update Infra Repo
         run: |
-          git clone https://x-access-token:${{ secrets.INFRA_REPO_TOKEN }}@github.com/<org>/infra.git
+          git clone https://x-access-token:${{ secrets.INFRA_REPO_TOKEN }}@github.com/jisna-testingmavens/infra-repo-env.git
           cd infra
           sed -i "s/tag:.*/tag: \"$IMAGE_TAG\"/" helm/ms-1/values-dev.yaml
           git commit -am "update ms-1 image $IMAGE_TAG"
